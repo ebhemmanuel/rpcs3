@@ -77,8 +77,8 @@ namespace rsx
 			static_cast<image_button*>(open_btn.get())->set_image_resource(resource_config::standard_image_resource::triangle);
 			open_btn->set_pos(btn_x, btn_y);
 
-			// "New invite" text just left of the Triangle button.
-			auto glance = std::make_unique<label>(std::string("New invite"));
+			// "Received Invite" text just left of the Triangle button.
+			auto glance = std::make_unique<label>(std::string("Received Invite"));
 			glance->set_font("Arial", 20);
 			glance->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
 			glance->back_color.a = 0.f;
@@ -397,6 +397,24 @@ namespace rsx
 
 					// Consume the toast window so a later Home press opens the full menu instead.
 					g_last_invite_toast_time_us = 0;
+
+					// Quick-join layout: center the Join pill near the bottom with the inviter
+					// name centered directly above it (the bottom-right + name-beside layout is
+					// only used for the full home menu).
+					if (m_join_bg)
+					{
+						const s16 jw = static_cast<s16>(m_join_bg->w);
+						const s16 jh = static_cast<s16>(m_join_bg->h);
+						const s16 jx = static_cast<s16>((virtual_width - jw) / 2);
+						const s16 jy = static_cast<s16>(virtual_height - 170);
+						m_join_bg->set_pos(jx, jy);
+
+						if (m_join_label)
+							m_join_label->set_pos(static_cast<s16>(jx + (jw - static_cast<s16>(m_join_label->w)) / 2), static_cast<s16>(jy + (jh - static_cast<s16>(m_join_label->h)) / 2));
+
+						if (m_invite_inviter)
+							m_invite_inviter->set_pos(static_cast<s16>((virtual_width - static_cast<s16>(m_invite_inviter->w)) / 2), static_cast<s16>(jy - 36));
+					}
 				}
 
 				// The section/prompt shows the invite, so fade out the now-redundant toast.
