@@ -84,6 +84,29 @@ namespace rsx
 			// Removes item from list if it matches the uid
 			void remove(u32 uid);
 
+			// Moves the overlay with the given uid to the top of the draw order (end of the list),
+			// so it renders above everything else (e.g. toasts over the home menu).
+			void move_to_top(u32 uid)
+			{
+				std::lock_guard lock(m_list_mutex);
+
+				for (auto it = m_iface_list.begin(); it != m_iface_list.end(); ++it)
+				{
+					if ((*it)->uid == uid)
+					{
+						if (std::next(it) == m_iface_list.end())
+						{
+							return; // already on top
+						}
+
+						auto item = std::move(*it);
+						m_iface_list.erase(it);
+						m_iface_list.push_back(std::move(item));
+						return;
+					}
+				}
+			}
+
 			// Removes all objects of this type from the list
 			template <typename T>
 			void remove()

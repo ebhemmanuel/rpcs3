@@ -356,10 +356,11 @@ namespace rsx
 				{
 					m_minimal_mode   = true;
 					m_invite_focused = true;
-				}
 
-				// The prompt itself shows the invite info, so fade out the now-redundant toast.
-				dismiss_message_queue();
+					// The minimal prompt replaces the toast, so fade the now-redundant toast out.
+					// (In the full menu we leave toasts visible - they now render on top.)
+					dismiss_message_queue();
+				}
 			}
 
 			// Dim less in minimal mode so the game/toast stays visible behind the prompt.

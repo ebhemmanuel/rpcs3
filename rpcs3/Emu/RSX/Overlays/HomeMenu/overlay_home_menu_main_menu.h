@@ -25,7 +25,7 @@ namespace rsx
 			void add_item(home_menu::fa_icon icon, std::string_view title, std::function<page_navigation(pad_button)> callback) override;
 			void add_page(home_menu::fa_icon icon, std::shared_ptr<home_menu_page> page) override;
 
-			void add_sidebar_entry(home_menu::fa_icon icon, std::string_view title);
+			void add_sidebar_entry(home_menu::fa_icon icon, std::string_view title, bool badge = false);
 
 			u64 m_animation_timer = 0;
 			animation_translate m_sliding_animation;

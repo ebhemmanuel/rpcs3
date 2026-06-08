@@ -10,8 +10,30 @@
 #include "Emu/system_config.h"
 #include "Emu/Cell/Modules/sceNpTrophy.h"
 #include "Emu/Cell/Modules/sceNp.h"
+#include "Emu/NP/rpcn_client.h"
 
 extern atomic_t<bool> g_user_asked_for_recording;
+
+namespace
+{
+	// No-op: one-shot snapshot of pending invites for the sidebar badge.
+	void home_menu_invite_badge_cb(void* /*param*/, shared_ptr<std::pair<std::string, message_data>> /*new_msg*/, u64 /*msg_id*/)
+	{
+	}
+
+	bool has_pending_invites()
+	{
+		auto rpcn = rpcn::rpcn_client::get_instance(0);
+		if (!rpcn)
+		{
+			return false;
+		}
+
+		const auto invites = rpcn->get_messages_and_register_cb(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, true, home_menu_invite_badge_cb, nullptr);
+		rpcn->remove_message_cb(home_menu_invite_badge_cb, nullptr);
+		return !invites.empty();
+	}
+}
 
 atomic_t<bool> g_user_asked_for_fullscreen = false;
 
@@ -69,8 +91,11 @@ namespace rsx
 
 				// Pending invites: lets the user accept/decline a PSN game invite from the home menu,
 				// independent of the game's own (often unimplemented) invite UI. On accept, the invite
-				// is delivered to the running game exactly like the native XMB would.
-				add_item(home_menu::fa_icon::friends, get_localized_string(localized_string_id::HOME_MENU_INVITES), [](pad_button btn) -> page_navigation
+				// is delivered to the running game exactly like the native XMB would. A badge dot is
+				// shown on the entry when invites are pending.
+				const std::string invites_title = get_localized_string(localized_string_id::HOME_MENU_INVITES);
+				add_sidebar_entry(home_menu::fa_icon::friends, invites_title, has_pending_invites());
+				home_menu_page::add_item(home_menu::fa_icon::none, invites_title, [](pad_button btn) -> page_navigation
 				{
 					if (btn != pad_button::cross) return page_navigation::stay;
 
@@ -201,7 +226,7 @@ namespace rsx
 			}
 		}
 
-		void home_menu_main_menu::add_sidebar_entry(home_menu::fa_icon icon, std::string_view title)
+		void home_menu_main_menu::add_sidebar_entry(home_menu::fa_icon icon, std::string_view title, bool badge)
 		{
 			auto label_widget = std::make_unique<label>(title.data());
 			label_widget->set_size(m_sidebar->w, 60);
@@ -241,6 +266,17 @@ namespace rsx
 			box->set_padding(1);
 			box->add_element(icon_view);
 			box->add_element(label_widget);
+
+			if (badge)
+			{
+				// Red notification dot to the right of the entry, vertically centered in the row.
+				auto dot = std::make_unique<ellipse>();
+				dot->set_size(16, 16);
+				dot->set_margin(14, 0);
+				dot->set_padding(0, 10, 22, 22);
+				dot->back_color = color4f(0.96f, 0.26f, 0.21f, 1.f);
+				box->add_element(dot);
+			}
 
 			m_sidebar->add_entry(box);
 		}

@@ -160,6 +160,9 @@ namespace rsx
 					msg_overlay = manager->add(msg_overlay);
 				}
 				msg_overlay->queue_message(msg_id, expiration, std::move(refs), location, std::move(icon), allow_refresh, compare_id);
+
+				// Keep toasts above other overlays (e.g. the home menu) so they stay visible.
+				manager->move_to_top(msg_overlay->uid);
 			}
 		}
 
