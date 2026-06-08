@@ -29,6 +29,7 @@ namespace rsx
 			void reset_expiration();
 			u64 get_expiration() const;
 			void ensure_expired();
+			void dismiss(); // expire shortly so the message fades out now
 			compiled_resource& get_compiled() override;
 
 			bool id_matches(localized_string_id id) const;
@@ -56,6 +57,9 @@ namespace rsx
 		public:
 			void update(u64 timestamp_us) override;
 			compiled_resource get_compiled() override;
+
+			// Fade out and drop every currently shown/queued message.
+			void dismiss_all();
 
 			template <typename T>
 			void queue_message(
@@ -160,6 +164,9 @@ namespace rsx
 		}
 
 		void refresh_message_queue();
+
+		// Fade out and clear all on-screen messages (e.g. when a redundant prompt takes over).
+		void dismiss_message_queue();
 
 	} // namespace overlays
 } // namespace rsx

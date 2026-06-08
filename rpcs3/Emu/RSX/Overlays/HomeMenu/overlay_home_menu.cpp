@@ -6,6 +6,7 @@
 #include "Emu/NP/rpcn_client.h"
 #include "Emu/Cell/Modules/sceNp.h"
 #include "Emu/Cell/timers.hpp"
+#include "Emu/RSX/Overlays/overlay_message.h"
 #include "Utilities/date_time.h"
 #include "Utilities/File.h"
 
@@ -68,21 +69,24 @@ namespace rsx
 			info->back_color.a = 0.f;
 			static_cast<label*>(info.get())->auto_resize();
 
-			// White "Join" pill (black text)
+			// White "Join" pill (black, centered text)
 			auto join_label = std::make_unique<label>("Join");
 			join_label->set_font("Arial", 20);
 			join_label->fore_color   = color4f(0.f, 0.f, 0.f, 1.f);
 			join_label->back_color.a = 0.f;
+			static_cast<label*>(join_label.get())->align_text(overlay_element::text_align::center);
 			static_cast<label*>(join_label.get())->auto_resize();
 
-			constexpr s16 jpad   = 28;
-			constexpr s16 join_h = 50;
-			s16 join_w = static_cast<s16>(join_label->w + 2 * jpad);
-			if (join_w < 160) join_w = 160;
+			// Size the pill snugly around the text so the label centers naturally (equal padding
+			// above and below), then make it a full rounded pill.
+			constexpr s16 hpad = 30;
+			constexpr s16 vpad = 13;
+			s16 join_w = static_cast<s16>(join_label->w) + 2 * hpad;
+			if (join_w < 170) join_w = 170;
+			const s16 join_h = static_cast<s16>(join_label->h) + 2 * vpad;
 
-			// Centered horizontally, sitting above the bottom-center invite toast.
 			const s16 join_x = (virtual_width - join_w) / 2;
-			const s16 join_y = virtual_height - 130;
+			const s16 join_y = virtual_height - 170;
 
 			auto join_bg = std::make_unique<rounded_rect>();
 			static_cast<rounded_rect*>(join_bg.get())->border_radius = join_h / 2; // full pill
@@ -90,10 +94,11 @@ namespace rsx
 			join_bg->set_pos(join_x, join_y);
 			join_bg->back_color = color4f(1.f, 1.f, 1.f, 1.f); // white
 
-			join_label->set_pos(join_x + (join_w - join_label->w) / 2, join_y + (join_h - join_label->h) / 2);
+			// Center the text-sized label inside the pill (equal vertical padding).
+			join_label->set_pos(join_x + (join_w - static_cast<s16>(join_label->w)) / 2, join_y + vpad);
 
-			// Info line centered just above the pill.
-			info->set_pos((virtual_width - static_cast<s16>(info->w)) / 2, join_y - 40);
+			// Join sits above; the info line goes just below the pill.
+			info->set_pos((virtual_width - static_cast<s16>(info->w)) / 2, join_y + join_h + 16);
 
 			m_invite_info = std::move(info);
 			m_join_bg     = std::move(join_bg);
@@ -352,6 +357,9 @@ namespace rsx
 					m_minimal_mode   = true;
 					m_invite_focused = true;
 				}
+
+				// The prompt itself shows the invite info, so fade out the now-redundant toast.
+				dismiss_message_queue();
 			}
 
 			// Dim less in minimal mode so the game/toast stays visible behind the prompt.

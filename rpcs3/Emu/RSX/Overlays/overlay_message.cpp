@@ -85,6 +85,14 @@ namespace rsx
 			}
 		}
 
+		void message_item::dismiss()
+		{
+			// Bring the expiration time up to now (+ one fade duration) so the next update fades
+			// the message out instead of leaving it on screen.
+			const u64 fade_us = static_cast<u64>(m_fade_out_animation.duration_sec * 1'000'000.0);
+			m_expiration_time = get_system_time() + fade_us;
+		}
+
 		bool message_item::id_matches(localized_string_id id) const
 		{
 			return m_loc_id == id;
@@ -405,6 +413,25 @@ namespace rsx
 			return message_exists(location, utf8_to_u32string(container.str), allow_refresh, compare_id);
 		}
 
+		void message::dismiss_all()
+		{
+			std::lock_guard lock(m_mutex_queue);
+
+			for (auto* set : {&m_visible_items_bottom_right, &m_visible_items_bottom_left, &m_visible_items_bottom_center, &m_visible_items_top_right, &m_visible_items_top_left})
+			{
+				for (auto& item : *set)
+				{
+					item.dismiss();
+				}
+			}
+
+			m_ready_queue_bottom_right.clear();
+			m_ready_queue_bottom_left.clear();
+			m_ready_queue_bottom_center.clear();
+			m_ready_queue_top_right.clear();
+			m_ready_queue_top_left.clear();
+		}
+
 		void refresh_message_queue()
 		{
 			if (auto manager = g_fxo->try_get<rsx::overlays::display_manager>())
@@ -412,6 +439,17 @@ namespace rsx
 				if (auto msg_overlay = manager->get<rsx::overlays::message>())
 				{
 					msg_overlay->refresh();
+				}
+			}
+		}
+
+		void dismiss_message_queue()
+		{
+			if (auto manager = g_fxo->try_get<rsx::overlays::display_manager>())
+			{
+				if (auto msg_overlay = manager->get<rsx::overlays::message>())
+				{
+					msg_overlay->dismiss_all();
 				}
 			}
 		}
