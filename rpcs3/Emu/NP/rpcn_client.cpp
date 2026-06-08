@@ -1232,6 +1232,12 @@ namespace rpcn
 				}
 
 				friend_online_data infos(online, std::move(pr_com_id), std::move(pr_title), std::move(pr_status), std::move(pr_comment), std::move(pr_data));
+				if (!infos.pr_data.empty())
+				{
+					rpcn_log.notice("[JOINDIAG] presence(initial) %s: online=%d title='%s' status='%s' data(%u bytes)=%s",
+						friend_name, infos.online, infos.pr_title, infos.pr_status,
+						static_cast<u32>(infos.pr_data.size()), fmt::buf_to_hexstring(infos.pr_data.data(), infos.pr_data.size()));
+				}
 				friends.insert_or_assign(std::move(friend_name), std::move(infos));
 			}
 		};
@@ -3109,6 +3115,13 @@ namespace rpcn
 				u->second.pr_status = std::move(pr_status);
 				u->second.pr_comment = std::move(pr_comment);
 				u->second.pr_data = std::move(pr_data);
+
+				if (!u->second.pr_data.empty())
+				{
+					rpcn_log.notice("[JOINDIAG] presence(update) %s: title='%s' status='%s' data(%u bytes)=%s",
+						username, u->second.pr_title, u->second.pr_status,
+						static_cast<u32>(u->second.pr_data.size()), fmt::buf_to_hexstring(u->second.pr_data.data(), u->second.pr_data.size()));
+				}
 
 				std::lock_guard lock(mutex_presence_updates);
 				presence_updates.insert_or_assign(username, u->second);

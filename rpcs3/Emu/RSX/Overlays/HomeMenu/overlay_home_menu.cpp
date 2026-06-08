@@ -65,6 +65,15 @@ namespace rsx
 			m_top_invite_id   = id;
 			m_has_invites     = true;
 
+			// [JOINDIAG] Dump the invite payload so we can compare it to a friend's presence
+			// data and judge whether join-off-friend can reuse the accept flow.
+			{
+				const auto& md = msg->second;
+				rsx_log.notice("[JOINDIAG] invite from '%s': mainType=%u subType=%u features=0x%x subject='%s' body='%s' data(%u bytes)=%s",
+					msg->first, md.mainType, md.subType, md.msgFeatures, md.subject, md.body,
+					static_cast<u32>(md.data.size()), fmt::buf_to_hexstring(md.data.data(), md.data.size()));
+			}
+
 			constexpr s16 margin = 40;
 
 			// ---- Collapsed glance: "New invite" + a small Triangle button to open ----
