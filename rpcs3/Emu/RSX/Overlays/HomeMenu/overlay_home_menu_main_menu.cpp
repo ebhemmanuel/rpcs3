@@ -96,10 +96,14 @@ namespace rsx
 				// is delivered to the running game exactly like the native XMB would. A badge dot is
 				// shown on the entry when invites are pending.
 				const std::string invites_title = get_localized_string(localized_string_id::HOME_MENU_INVITES);
-				add_sidebar_entry(home_menu::fa_icon::friends, invites_title, has_pending_invites());
-				home_menu_page::add_item(home_menu::fa_icon::none, invites_title, [](pad_button btn) -> page_navigation
+				const bool invites_pending = has_pending_invites();
+				add_sidebar_entry(home_menu::fa_icon::friends, invites_title, invites_pending, !invites_pending);
+				home_menu_page::add_item(home_menu::fa_icon::none, invites_title, [invites_pending](pad_button btn) -> page_navigation
 				{
 					if (btn != pad_button::cross) return page_navigation::stay;
+
+					// Disabled when there are no pending invites.
+					if (!invites_pending) return page_navigation::stay;
 
 					rsx_log.notice("User selected invites in home menu");
 					open_home_menu_invite_dialog();
@@ -192,10 +196,15 @@ namespace rsx
 				return page_navigation::stay;
 			});
 
-			// Build the (layered) invite notification dot once.
-			m_invite_badge = std::make_unique<ellipse>();
-			m_invite_badge->set_size(16, 16);
-			m_invite_badge->back_color = color4f(0.96f, 0.26f, 0.21f, 1.f); // red
+			// Build the (layered) invite badge once: a white circle with a black triangle glyph.
+			m_invite_badge_circle = std::make_unique<ellipse>();
+			m_invite_badge_circle->set_size(28, 28);
+			m_invite_badge_circle->back_color = color4f(1.f, 1.f, 1.f, 1.f); // white
+
+			m_invite_badge_glyph = std::make_unique<image_view>();
+			m_invite_badge_glyph->set_size(16, 16);
+			static_cast<image_view*>(m_invite_badge_glyph.get())->set_image_resource(resource_config::standard_image_resource::triangle);
+			m_invite_badge_glyph->fore_color = color4f(0.f, 0.f, 0.f, 1.f); // black triangle
 
 			apply_layout();
 		}
@@ -233,7 +242,7 @@ namespace rsx
 			}
 		}
 
-		void home_menu_main_menu::add_sidebar_entry(home_menu::fa_icon icon, std::string_view title, bool badge)
+		void home_menu_main_menu::add_sidebar_entry(home_menu::fa_icon icon, std::string_view title, bool badge, bool dimmed)
 		{
 			auto label_widget = std::make_unique<label>(title.data());
 			label_widget->set_size(m_sidebar->w, 60);
@@ -243,6 +252,12 @@ namespace rsx
 			label_widget->set_padding(16, 4, 16, 4);
 			label_widget->auto_resize();
 			label_widget->set_size(label_widget->w, 60);
+
+			if (dimmed)
+			{
+				// Greyed out / disabled (e.g. Invites with nothing pending).
+				label_widget->fore_color = color4f(0.45f, 0.45f, 0.45f, 1.f);
+			}
 
 			if (icon == home_menu::fa_icon::none)
 			{
@@ -261,6 +276,11 @@ namespace rsx
 			icon_view->set_size(42, 60);
 			icon_view->set_margin(8, 0);
 			icon_view->set_padding(18, 0, 18, 18);
+
+			if (dimmed)
+			{
+				icon_view->fore_color.a = 0.4f;
+			}
 
 			const u16 packed_width = icon_view->padding_left + icon_view->w + label_widget->w + 18; // rpad
 			if (packed_width > m_sidebar->w)
@@ -344,16 +364,25 @@ namespace rsx
 
 			compiled_resources = m_sidebar->get_compiled();
 
-			// Layer the invite notification dot at the right edge of the "Invites" row. Added before
-			// the slide animation so it moves in with the sidebar.
-			if (m_show_invite_badge && m_invite_entry && m_invite_badge)
+			// Layer the white-circle/black-triangle badge at the right edge of the "Invites" row.
+			// Added before the slide animation so it moves in with the sidebar.
+			if (m_show_invite_badge && m_invite_entry && m_invite_badge_circle)
 			{
-				const s16 dot_w = static_cast<s16>(m_invite_badge->w);
-				const s16 dot_h = static_cast<s16>(m_invite_badge->h);
-				const s16 bx = static_cast<s16>(m_sidebar->x + m_sidebar->w - dot_w - 18);
-				const s16 by = static_cast<s16>(m_invite_entry->y + (static_cast<s16>(m_invite_entry->h) - dot_h) / 2);
-				m_invite_badge->set_pos(bx, by);
-				compiled_resources.add(m_invite_badge->get_compiled());
+				const s16 cw = static_cast<s16>(m_invite_badge_circle->w);
+				const s16 ch = static_cast<s16>(m_invite_badge_circle->h);
+				const s16 cx = static_cast<s16>(m_sidebar->x + m_sidebar->w - cw - 14);
+				const s16 cy = static_cast<s16>(m_invite_entry->y + (static_cast<s16>(m_invite_entry->h) - ch) / 2);
+
+				m_invite_badge_circle->set_pos(cx, cy);
+				compiled_resources.add(m_invite_badge_circle->get_compiled());
+
+				if (m_invite_badge_glyph)
+				{
+					const s16 gw = static_cast<s16>(m_invite_badge_glyph->w);
+					const s16 gh = static_cast<s16>(m_invite_badge_glyph->h);
+					m_invite_badge_glyph->set_pos(cx + (cw - gw) / 2, cy + (ch - gh) / 2);
+					compiled_resources.add(m_invite_badge_glyph->get_compiled());
+				}
 			}
 
 			m_sliding_animation.apply(compiled_resources);
