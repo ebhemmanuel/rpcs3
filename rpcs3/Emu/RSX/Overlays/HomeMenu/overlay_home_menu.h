@@ -42,6 +42,7 @@ namespace rsx
 			std::unique_ptr<overlay_element> m_join_label;      // "Join" (expanded)
 			bool m_invite_expanded = false;
 			bool m_has_invites     = false;
+			bool m_minimal_mode    = false; // opened over a live toast: quick-join only, no menu chrome
 			u64 m_top_invite_id    = 0;
 
 			animation_color_interpolate fade_animation{};

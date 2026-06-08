@@ -212,6 +212,22 @@ namespace rsx
 		{
 			if (fade_animation.active) return;
 
+			// Quick-join mode (opened over a live toast): only Join or dismiss, no menu navigation.
+			if (m_minimal_mode)
+			{
+				switch (button_press)
+				{
+				case pad_button::cross: // Join
+					join_focused_invite();
+					return;
+				case pad_button::circle: // Dismiss -> back to the game
+					trigger_close();
+					return;
+				default:
+					return;
+				}
+			}
+
 			// Bottom-right invite section. Expanded shows the inviter + Join pill.
 			if (m_invite_expanded)
 			{
@@ -319,6 +335,17 @@ namespace rsx
 			compiled_resource result;
 			result.add(m_dim_background.get_compiled());
 
+			if (m_minimal_mode)
+			{
+				// Quick-join only: the focused inviter + Join pill, no menu chrome.
+				if (m_invite_inviter) result.add(m_invite_inviter->get_compiled());
+				if (m_join_bg) result.add(m_join_bg->get_compiled());
+				if (m_join_label) result.add(m_join_label->get_compiled());
+
+				fade_animation.apply(result);
+				return result;
+			}
+
 			result.add(m_main_menu.get_compiled());
 			result.add(m_description.get_compiled());
 			result.add(m_time_display.get_compiled());
@@ -360,16 +387,24 @@ namespace rsx
 
 			if (m_has_invites)
 			{
-				// The section shows the invite info, so fade out the now-redundant toast.
-				dismiss_message_queue();
-
-				// If opened while the invite toast was still up, auto-expand for a quick one-button join.
+				// If opened while the invite toast is still on screen, show only the focused Join
+				// prompt (no full menu chrome) so the player can join straight from the game.
 				const u64 last_toast = g_last_invite_toast_time_us;
-				if (last_toast != 0 && (get_system_time() - last_toast) < 7'000'000)
+				if (last_toast != 0 && (get_system_time() - last_toast) < 6'000'000)
 				{
+					m_minimal_mode    = true;
 					m_invite_expanded = true;
+
+					// Consume the toast window so a later Home press opens the full menu instead.
+					g_last_invite_toast_time_us = 0;
 				}
+
+				// The section/prompt shows the invite, so fade out the now-redundant toast.
+				dismiss_message_queue();
 			}
+
+			// Dim less in minimal mode so the game stays visible behind the quick-join prompt.
+			m_dim_background.back_color.a = m_minimal_mode ? 0.4f : 0.85f;
 
 			visible = true;
 
