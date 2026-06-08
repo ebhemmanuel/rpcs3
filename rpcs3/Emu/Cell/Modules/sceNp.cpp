@@ -29,6 +29,8 @@
 #include "Emu/RSX/Overlays/Network/overlay_recvmessage_dialog.h"
 #include "Emu/RSX/Overlays/Network/overlay_sendmessage_dialog.h"
 
+#include <thread>
+
 LOG_CHANNEL(sceNp);
 
 error_code sceNpManagerGetNpId(vm::ptr<SceNpId> npId);
@@ -1491,6 +1493,7 @@ error_code sceNpBasicSendMessageAttachment(ppu_thread& ppu, vm::cptr<SceNpId> to
 }
 
 error_code recv_message_gui(ppu_thread& ppu, u16 mainType, u32 recvOptions);
+error_code deliver_message_gui_result(u16 mainType, u32 recvOptions, u64 chosen_msg_id, SceNpBasicMessageRecvAction recv_result);
 
 error_code sceNpBasicRecvMessageAttachment(ppu_thread& ppu, sys_memory_container_t containerId)
 {
@@ -1598,8 +1601,6 @@ error_code sceNpBasicRecvMessageCustom(ppu_thread& ppu, u16 mainType, u32 recvOp
 
 error_code recv_message_gui(ppu_thread& ppu, u16 mainType, u32 recvOptions)
 {
-	auto& nph = g_fxo->get<named_thread<np::np_handler>>();
-
 	error_code result = CELL_CANCEL;
 
 	SceNpBasicMessageRecvAction recv_result{};
@@ -1630,11 +1631,21 @@ error_code recv_message_gui(ppu_thread& ppu, u16 mainType, u32 recvOptions)
 		return not_an_error(SCE_NP_BASIC_ERROR_CANCEL);
 	}
 
+	return deliver_message_gui_result(mainType, recvOptions, chosen_msg_id, recv_result);
+}
+
+// Delivers the result of a message/invite dialog back to the running game: selects the chosen
+// attachment and fires the matching SCE_NP_BASIC_EVENT_RECV_*_RESULT event. Shared by the game-driven
+// recv_message_gui() path and the home-menu open_home_menu_invite_dialog() path.
+error_code deliver_message_gui_result(u16 mainType, u32 recvOptions, u64 chosen_msg_id, SceNpBasicMessageRecvAction recv_result)
+{
+	auto& nph = g_fxo->get<named_thread<np::np_handler>>();
+
 	const auto opt_msg = nph.get_message(chosen_msg_id);
 
 	if (!opt_msg)
 	{
-		sceNp.fatal("sceNpBasicRecvMessageCustom: message is invalid: chosen_msg_id=%d", chosen_msg_id);
+		sceNp.fatal("deliver_message_gui_result: message is invalid: chosen_msg_id=%d", chosen_msg_id);
 		return SCE_NP_BASIC_ERROR_CANCEL;
 	}
 
@@ -1660,7 +1671,7 @@ error_code recv_message_gui(ppu_thread& ppu, u16 mainType, u32 recvOptions)
 		data.id = SCE_NP_BASIC_SELECTED_MESSAGE_DATA;
 		break;
 	default:
-		fmt::throw_exception("recv_message_gui: Unexpected main type %d", mainType);
+		fmt::throw_exception("deliver_message_gui_result: Unexpected main type %d", mainType);
 	}
 
 	np::basic_event to_add{};
@@ -1698,6 +1709,40 @@ error_code recv_message_gui(ppu_thread& ppu, u16 mainType, u32 recvOptions)
 	nph.send_basic_event(event_to_send, 0, 0);
 
 	return CELL_OK;
+}
+
+void open_home_menu_invite_dialog()
+{
+	// Exec() blocks until the user responds, so run it on a detached worker thread to avoid
+	// stalling the overlay/RSX thread that invoked us from the home menu.
+	std::thread([]()
+	{
+		SceNpBasicMessageRecvAction recv_result{};
+		u64 chosen_msg_id{};
+		error_code result = CELL_CANCEL;
+
+		// PRESERVE keeps the invite in the message store so the user can retry if a join fails.
+		constexpr u32 recv_options = SCE_NP_BASIC_RECV_MESSAGE_OPTIONS_PRESERVE;
+
+		if (auto manager = g_fxo->try_get<rsx::overlays::display_manager>())
+		{
+			auto recv_dlg = manager->create<rsx::overlays::recvmessage_dialog>();
+			result = recv_dlg->Exec(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, static_cast<SceNpBasicMessageRecvOptions>(recv_options), recv_result, chosen_msg_id);
+		}
+		else
+		{
+			sceNp.error("open_home_menu_invite_dialog: no display manager available");
+			return;
+		}
+
+		// Only hand the invite to the game if the user accepted it.
+		if (result != CELL_OK || recv_result != SCE_NP_BASIC_MESSAGE_ACTION_ACCEPT)
+		{
+			return;
+		}
+
+		deliver_message_gui_result(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, recv_options, chosen_msg_id, recv_result);
+	}).detach();
 }
 
 error_code sceNpBasicMarkMessageAsUsed(SceNpBasicMessageId msgId)

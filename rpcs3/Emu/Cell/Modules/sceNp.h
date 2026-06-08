@@ -1876,6 +1876,11 @@ protected:
 	std::shared_ptr<rpcn::rpcn_client> m_rpcn;
 };
 
+// Opens the invite list from the in-emulator home menu (PS button), independent of the game's
+// own invite UI. Lets the user accept/decline a pending PSN invite and delivers an accepted one
+// to the running game exactly like the native XMB does. Safe to call without a ppu_thread.
+void open_home_menu_invite_dialog();
+
 // Generic functions, also used in SceNpMatchingInt.cpp
 error_code matching_create_room(u32 ctx_id, vm::cptr<SceNpCommunicationId> communicationId, vm::cptr<SceNpMatchingAttr> attr, vm::ptr<SceNpMatchingGUIHandler> handler, vm::ptr<void> arg);
 error_code matching_join_room(u32 ctx_id, vm::ptr<SceNpRoomId> room_id, vm::ptr<SceNpMatchingGUIHandler> handler, vm::ptr<void> arg);

@@ -9,6 +9,7 @@
 #include "Emu/System.h"
 #include "Emu/system_config.h"
 #include "Emu/Cell/Modules/sceNpTrophy.h"
+#include "Emu/Cell/Modules/sceNp.h"
 
 extern atomic_t<bool> g_user_asked_for_recording;
 
@@ -63,6 +64,18 @@ namespace rsx
 							(result ? rsx_log.error : rsx_log.notice)("Opened friends list with result %d", s32{result});
 						}
 					});
+					return page_navigation::stay;
+				});
+
+				// Pending invites: lets the user accept/decline a PSN game invite from the home menu,
+				// independent of the game's own (often unimplemented) invite UI. On accept, the invite
+				// is delivered to the running game exactly like the native XMB would.
+				add_item(home_menu::fa_icon::friends, get_localized_string(localized_string_id::HOME_MENU_INVITES), [](pad_button btn) -> page_navigation
+				{
+					if (btn != pad_button::cross) return page_navigation::stay;
+
+					rsx_log.notice("User selected invites in home menu");
+					open_home_menu_invite_dialog();
 					return page_navigation::stay;
 				});
 			}

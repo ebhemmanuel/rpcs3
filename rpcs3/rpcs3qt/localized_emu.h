@@ -207,6 +207,7 @@ private:
 		case localized_string_id::HOME_MENU_EXIT_GAME: return tr("Exit Game");
 		case localized_string_id::HOME_MENU_RESUME: return tr("Resume Game");
 		case localized_string_id::HOME_MENU_FRIENDS: return tr("Friends");
+		case localized_string_id::HOME_MENU_INVITES: return tr("Invites");
 		case localized_string_id::HOME_MENU_FRIENDS_REQUESTS: return tr("Pending Friend Requests");
 		case localized_string_id::HOME_MENU_FRIENDS_BLOCKED: return tr("Blocked Users");
 		case localized_string_id::HOME_MENU_FRIENDS_STATUS_ONLINE: return tr("Online");
