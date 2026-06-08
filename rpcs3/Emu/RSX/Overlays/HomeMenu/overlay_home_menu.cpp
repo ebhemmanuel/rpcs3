@@ -7,6 +7,7 @@
 #include "Emu/Cell/Modules/sceNp.h"
 #include "Emu/Cell/timers.hpp"
 #include "Emu/RSX/Overlays/overlay_message.h"
+#include "Input/pad_thread.h"
 #include "Utilities/date_time.h"
 #include "Utilities/File.h"
 
@@ -63,13 +64,12 @@ namespace rsx
 
 			m_top_invite_id   = id;
 			m_has_invites     = true;
-			const usz count   = invites.size();
 
 			constexpr s16 margin = 40;
 
-			// ---- Collapsed glance: "<envelope> N" + a Triangle button to open ----
-			constexpr s16 btn_w = 56;
-			constexpr s16 btn_h = 48;
+			// ---- Collapsed glance: "New invite" + a small Triangle button to open ----
+			constexpr s16 btn_w = 34;
+			constexpr s16 btn_h = 30;
 			const s16 btn_x = static_cast<s16>(virtual_width - margin - btn_w);
 			const s16 btn_y = static_cast<s16>(virtual_height - margin - btn_h);
 
@@ -77,13 +77,13 @@ namespace rsx
 			static_cast<image_button*>(open_btn.get())->set_image_resource(resource_config::standard_image_resource::triangle);
 			open_btn->set_pos(btn_x, btn_y);
 
-			// U+2709 envelope + the pending count, just left of the button.
-			auto glance = std::make_unique<label>(std::string("\xE2\x9C\x89 ") + std::to_string(count));
-			glance->set_font("Arial", 22);
+			// "New invite" text just left of the Triangle button.
+			auto glance = std::make_unique<label>(std::string("New invite"));
+			glance->set_font("Arial", 20);
 			glance->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
 			glance->back_color.a = 0.f;
 			static_cast<label*>(glance.get())->auto_resize();
-			glance->set_pos(static_cast<s16>(btn_x - static_cast<s16>(glance->w) - 14), static_cast<s16>(btn_y + (btn_h - static_cast<s16>(glance->h)) / 2));
+			glance->set_pos(static_cast<s16>(btn_x - static_cast<s16>(glance->w) - 12), static_cast<s16>(btn_y + (btn_h - static_cast<s16>(glance->h)) / 2));
 
 			// ---- Expanded: inviter name + white Join pill ----
 			auto join_label = std::make_unique<label>("Join");
@@ -109,13 +109,13 @@ namespace rsx
 			join_bg->back_color = color4f(1.f, 1.f, 1.f, 1.f); // white
 			join_label->set_pos(join_x + (join_w - static_cast<s16>(join_label->w)) / 2, join_y + vpad);
 
-			// Inviter name above the pill, right-aligned with it.
+			// Inviter name to the left of the Join pill, on the same row (vertically centered).
 			auto inviter = std::make_unique<label>(msg->first);
 			inviter->set_font("Arial", 22);
 			inviter->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
 			inviter->back_color.a = 0.f;
 			static_cast<label*>(inviter.get())->auto_resize();
-			inviter->set_pos(static_cast<s16>(virtual_width - margin - static_cast<s16>(inviter->w)), static_cast<s16>(join_y - 36));
+			inviter->set_pos(static_cast<s16>(join_x - static_cast<s16>(inviter->w) - 16), static_cast<s16>(join_y + (join_h - static_cast<s16>(inviter->h)) / 2));
 
 			m_invite_open_btn = std::move(open_btn);
 			m_invite_glance   = std::move(glance);
@@ -180,6 +180,16 @@ namespace rsx
 
 		void home_menu_dialog::update(u64 timestamp_us)
 		{
+			// Close from the PS/home button (pressed again while the menu is open).
+			if (pad::g_home_menu_close_requested.exchange(false))
+			{
+				const bool already_closing = fade_animation.active && fade_animation.end.a == 0.f;
+				if (!already_closing)
+				{
+					trigger_close();
+				}
+			}
+
 			if (fade_animation.active)
 			{
 				fade_animation.update(timestamp_us);

@@ -83,6 +83,7 @@ namespace pad
 	extern atomic_t<bool> g_reset;
 	extern atomic_t<bool> g_started;
 	extern atomic_t<bool> g_home_menu_requested;
+	extern atomic_t<bool> g_home_menu_close_requested;
 
 	static inline class pad_thread* get_pad_thread(bool relaxed = false)
 	{

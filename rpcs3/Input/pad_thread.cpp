@@ -47,6 +47,7 @@ namespace pad
 	atomic_t<bool> g_reset{false};
 	atomic_t<bool> g_enabled{true};
 	atomic_t<bool> g_home_menu_requested{false};
+	atomic_t<bool> g_home_menu_close_requested{false};
 }
 
 namespace rsx
@@ -656,8 +657,10 @@ void pad_thread::operator()()
 			}
 		}
 
-		// Handle home menu if requested
-		if (!is_vsh && !m_home_menu_open && Emu.IsRunning())
+		// Handle home menu open/close via the PS (home/guide) button.
+		// The edge is tracked continuously (even while the menu is open) so the same press that
+		// opened the menu cannot immediately close it - it only toggles on a fresh press.
+		if (!is_vsh)
 		{
 			bool ps_button_pressed = false;
 
@@ -689,13 +692,21 @@ void pad_thread::operator()()
 				}
 			}
 
-			// Make sure we call this function only once per button press
-			if ((ps_button_pressed && !m_ps_button_pressed) || pad::g_home_menu_requested.exchange(false))
-			{
-				open_home_menu();
-			}
-
+			const bool ps_button_edge = ps_button_pressed && !m_ps_button_pressed;
 			m_ps_button_pressed = ps_button_pressed;
+
+			if (!m_home_menu_open)
+			{
+				if ((ps_button_edge && Emu.IsRunning()) || pad::g_home_menu_requested.exchange(false))
+				{
+					open_home_menu();
+				}
+			}
+			else if (ps_button_edge)
+			{
+				// PS pressed again while the menu is open -> close it (handled by the dialog).
+				pad::g_home_menu_close_requested = true;
+			}
 		}
 
 		// Handle paused emulation (if triggered by home menu).
@@ -926,6 +937,9 @@ void pad_thread::open_home_menu()
 		{
 			return;
 		}
+
+		// Clear any stale close request from a previous session.
+		pad::g_home_menu_close_requested = false;
 
 		if (!send_open_home_menu_cmds())
 		{

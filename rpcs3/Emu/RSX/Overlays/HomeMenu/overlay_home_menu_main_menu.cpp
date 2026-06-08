@@ -196,15 +196,10 @@ namespace rsx
 				return page_navigation::stay;
 			});
 
-			// Build the (layered) invite badge once: a white circle with a black triangle glyph.
+			// Build the (layered) small invite indicator dot once.
 			m_invite_badge_circle = std::make_unique<ellipse>();
-			m_invite_badge_circle->set_size(28, 28);
+			m_invite_badge_circle->set_size(14, 14);
 			m_invite_badge_circle->back_color = color4f(1.f, 1.f, 1.f, 1.f); // white
-
-			m_invite_badge_glyph = std::make_unique<image_view>();
-			m_invite_badge_glyph->set_size(16, 16);
-			static_cast<image_view*>(m_invite_badge_glyph.get())->set_image_resource(resource_config::standard_image_resource::triangle);
-			m_invite_badge_glyph->fore_color = color4f(0.f, 0.f, 0.f, 1.f); // black triangle
 
 			apply_layout();
 		}
