@@ -26,11 +26,13 @@ namespace
 		auto rpcn = rpcn::rpcn_client::get_instance(0);
 		if (!rpcn)
 		{
+			rsx_log.notice("Home menu invite badge: no RPCN instance");
 			return false;
 		}
 
 		const auto invites = rpcn->get_messages_and_register_cb(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, true, home_menu_invite_badge_cb, nullptr);
 		rpcn->remove_message_cb(home_menu_invite_badge_cb, nullptr);
+		rsx_log.notice("Home menu invite badge: %d pending invite(s)", invites.size());
 		return !invites.empty();
 	}
 }
@@ -190,6 +192,11 @@ namespace rsx
 				return page_navigation::stay;
 			});
 
+			// Build the (layered) invite notification dot once.
+			m_invite_badge = std::make_unique<ellipse>();
+			m_invite_badge->set_size(16, 16);
+			m_invite_badge->back_color = color4f(0.96f, 0.26f, 0.21f, 1.f); // red
+
 			apply_layout();
 		}
 
@@ -269,13 +276,10 @@ namespace rsx
 
 			if (badge)
 			{
-				// Red notification dot to the right of the entry, vertically centered in the row.
-				auto dot = std::make_unique<ellipse>();
-				dot->set_size(16, 16);
-				dot->set_margin(14, 0);
-				dot->set_padding(0, 10, 22, 22);
-				dot->back_color = color4f(0.96f, 0.26f, 0.21f, 1.f);
-				box->add_element(dot);
+				// Remember this row so get_compiled() can layer the notification dot at its right
+				// edge (absolute), rather than adding it into the flow layout.
+				m_invite_entry      = box.get();
+				m_show_invite_badge = true;
 			}
 
 			m_sidebar->add_entry(box);
@@ -339,6 +343,19 @@ namespace rsx
 			}
 
 			compiled_resources = m_sidebar->get_compiled();
+
+			// Layer the invite notification dot at the right edge of the "Invites" row. Added before
+			// the slide animation so it moves in with the sidebar.
+			if (m_show_invite_badge && m_invite_entry && m_invite_badge)
+			{
+				const s16 dot_w = static_cast<s16>(m_invite_badge->w);
+				const s16 dot_h = static_cast<s16>(m_invite_badge->h);
+				const s16 bx = static_cast<s16>(m_sidebar->x + m_sidebar->w - dot_w - 18);
+				const s16 by = static_cast<s16>(m_invite_entry->y + (static_cast<s16>(m_invite_entry->h) - dot_h) / 2);
+				m_invite_badge->set_pos(bx, by);
+				compiled_resources.add(m_invite_badge->get_compiled());
+			}
+
 			m_sliding_animation.apply(compiled_resources);
 			return compiled_resources;
 		}

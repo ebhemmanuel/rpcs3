@@ -30,6 +30,11 @@ namespace rsx
 			u64 m_animation_timer = 0;
 			animation_translate m_sliding_animation;
 			std::unique_ptr<list_view> m_sidebar; // Render proxy
+
+			// Notification dot layered at the right edge of the "Invites" row when invites are pending.
+			std::unique_ptr<overlay_element> m_invite_badge;
+			overlay_element* m_invite_entry = nullptr; // points into m_sidebar's items
+			bool m_show_invite_badge = false;
 		};
 	}
 }
