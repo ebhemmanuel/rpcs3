@@ -23,29 +23,24 @@ namespace rsx
 			error_code show(std::function<void(s32 status)> on_close);
 
 		private:
-			// A glanceable styled card shown at the bottom-right for each pending PSN invite.
-			// Pressing Triangle (or opening the menu while the invite toast is up) focuses the
-			// "Join" pill above the newest card, where Cross joins and Circle cancels.
-			struct invite_card
-			{
-				std::unique_ptr<overlay_element> background;
-				std::unique_ptr<overlay_element> content;
-				std::unique_ptr<image_info> icon_data;
-			};
-
-			void build_invite_cards();
+			// Builds the pending-invite prompt ("<user> has invited you to play" + a white Join pill,
+			// centered above the bottom toast). Triangle focuses it; opening the menu while the invite
+			// toast is still up shows it minimally (no menu chrome) for a one-button quick-join.
+			void build_invite_prompt();
 			void join_focused_invite();
+			void trigger_close();
 
 			home_menu_main_menu m_main_menu;
 			overlay_element m_dim_background{};
 			label m_description{};
 			label m_time_display{};
-			std::vector<invite_card> m_invite_cards;
 
-			// Focusable white "Join" pill, shown above the newest invite card when focused.
+			// Pending-invite prompt elements (info line + white Join pill).
 			std::unique_ptr<overlay_element> m_join_bg;
 			std::unique_ptr<overlay_element> m_join_label;
+			std::unique_ptr<overlay_element> m_invite_info;
 			bool m_invite_focused = false;
+			bool m_minimal_mode   = false;
 			bool m_has_invites    = false;
 			u64 m_top_invite_id   = 0;
 

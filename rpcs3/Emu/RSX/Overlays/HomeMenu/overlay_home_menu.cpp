@@ -26,13 +26,14 @@ namespace rsx
 			return date_time::fmt_time("%Y/%m/%d %H:%M:%S", time(nullptr));
 		}
 
-		void home_menu_dialog::build_invite_cards()
+		void home_menu_dialog::build_invite_prompt()
 		{
-			m_invite_cards.clear();
 			m_join_bg.reset();
 			m_join_label.reset();
+			m_invite_info.reset();
 			m_has_invites    = false;
 			m_invite_focused = false;
+			m_minimal_mode   = false;
 			m_top_invite_id  = 0;
 
 			auto rpcn = rpcn::rpcn_client::get_instance(0);
@@ -50,111 +51,38 @@ namespace rsx
 				return;
 			}
 
-			const std::string icon_path = g_cfg_vfs.get_dev_flash() + "vsh/resource/explore/user/011.png";
-
-			constexpr s16 card_w       = 540;
-			constexpr s16 card_h       = 96;
-			constexpr s16 edge_margin  = 24;
-			constexpr s16 card_spacing = 12;
-			constexpr s16 pad          = 16; // 16px inner padding
-
-			// Stack newest at the bottom, older ones above.
-			s16 y = virtual_height - edge_margin - card_h;
-
-			s16 primary_x    = 0;
-			s16 primary_y    = 0;
-			bool got_primary = false;
-
-			for (const auto& [id, msg] : invites)
-			{
-				if (!msg) continue;
-				if (y < 0) break; // don't overflow off the top
-
-				const s16 x = virtual_width - edge_margin - card_w;
-
-				if (!got_primary)
-				{
-					// The bottom-most (corner) card is the one the Join pill acts on.
-					got_primary     = true;
-					m_top_invite_id = id;
-					primary_x       = x;
-					primary_y       = y;
-				}
-
-				invite_card card{};
-
-				// Rounded background
-				auto bg = std::make_unique<rounded_rect>();
-				static_cast<rounded_rect*>(bg.get())->border_radius = 16;
-				bg->set_size(card_w, card_h);
-				bg->set_pos(x, y);
-				bg->back_color = color4f(0.07f, 0.07f, 0.07f, 0.92f);
-
-				// Content row: icon + text
-				auto content = std::make_unique<horizontal_layout>();
-				content->set_pos(x + pad, y + pad);
-				content->set_size(card_w - 2 * pad, card_h - 2 * pad);
-				static_cast<horizontal_layout*>(content.get())->pack_padding = 14;
-
-				auto image = std::make_unique<image_view>();
-				image->set_size(64, 64);
-				if (fs::exists(icon_path))
-				{
-					card.icon_data = std::make_unique<image_info>(icon_path);
-					static_cast<image_view*>(image.get())->set_raw_image(card.icon_data.get());
-				}
-				else
-				{
-					static_cast<image_view*>(image.get())->set_image_resource(resource_config::standard_image_resource::square);
-				}
-
-				auto text_stack = std::make_unique<vertical_layout>();
-				static_cast<vertical_layout*>(text_stack.get())->pack_padding = 4;
-
-				auto header = std::make_unique<label>(msg->first);
-				header->set_size(card_w - 2 * pad - 78, 34);
-				header->set_font("Arial", 18);
-				header->back_color.a = 0.f;
-
-				auto sub = std::make_unique<label>("has invited you to play");
-				sub->set_size(card_w - 2 * pad - 78, 28);
-				sub->set_font("Arial", 14);
-				sub->back_color.a = 0.f;
-
-				static_cast<vertical_layout*>(text_stack.get())->add_element(header);
-				static_cast<vertical_layout*>(text_stack.get())->add_element(sub);
-
-				static_cast<horizontal_layout*>(content.get())->add_element(image);
-				static_cast<horizontal_layout*>(content.get())->add_element(text_stack);
-
-				card.background = std::move(bg);
-				card.content    = std::move(content);
-				m_invite_cards.push_back(std::move(card));
-
-				y -= (card_h + card_spacing);
-			}
-
-			if (!got_primary)
+			// Use the newest pending invite (active_messages is ordered by ascending id).
+			const auto& [id, msg] = invites.back();
+			if (!msg)
 			{
 				return;
 			}
 
-			m_has_invites = true;
+			m_top_invite_id = id;
+			m_has_invites   = true;
 
-			// Build the focusable white "Join" pill, positioned just above the primary card.
+			// Info line: "<inviter> has invited you to play"
+			auto info = std::make_unique<label>(msg->first + " has invited you to play");
+			info->set_font("Arial", 20);
+			info->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
+			info->back_color.a = 0.f;
+			static_cast<label*>(info.get())->auto_resize();
+
+			// White "Join" pill (black text)
 			auto join_label = std::make_unique<label>("Join");
-			join_label->set_font("Arial", 18);
-			join_label->fore_color   = color4f(0.f, 0.f, 0.f, 1.f); // black text
+			join_label->set_font("Arial", 20);
+			join_label->fore_color   = color4f(0.f, 0.f, 0.f, 1.f);
 			join_label->back_color.a = 0.f;
 			static_cast<label*>(join_label.get())->auto_resize();
 
-			constexpr s16 jpad   = 24;
-			constexpr s16 join_h = 46;
+			constexpr s16 jpad   = 28;
+			constexpr s16 join_h = 50;
 			s16 join_w = static_cast<s16>(join_label->w + 2 * jpad);
-			if (join_w < 150) join_w = 150;
+			if (join_w < 160) join_w = 160;
 
-			const s16 join_x = primary_x + card_w - join_w; // right-aligned with the card
-			const s16 join_y = primary_y - join_h - 10;     // just above the card
+			// Centered horizontally, sitting above the bottom-center invite toast.
+			const s16 join_x = (virtual_width - join_w) / 2;
+			const s16 join_y = virtual_height - 130;
 
 			auto join_bg = std::make_unique<rounded_rect>();
 			static_cast<rounded_rect*>(join_bg.get())->border_radius = join_h / 2; // full pill
@@ -164,16 +92,16 @@ namespace rsx
 
 			join_label->set_pos(join_x + (join_w - join_label->w) / 2, join_y + (join_h - join_label->h) / 2);
 
-			m_join_bg    = std::move(join_bg);
-			m_join_label = std::move(join_label);
+			// Info line centered just above the pill.
+			info->set_pos((virtual_width - static_cast<s16>(info->w)) / 2, join_y - 40);
+
+			m_invite_info = std::move(info);
+			m_join_bg     = std::move(join_bg);
+			m_join_label  = std::move(join_label);
 		}
 
-		void home_menu_dialog::join_focused_invite()
+		void home_menu_dialog::trigger_close()
 		{
-			::join_home_menu_invite(m_top_invite_id);
-			m_invite_focused = false;
-
-			// Close the home menu (and resume emulation) so the game acts on the join.
 			fade_animation.current = color4f(1.f);
 			fade_animation.end     = color4f(0.f);
 			fade_animation.active  = true;
@@ -190,6 +118,15 @@ namespace rsx
 					});
 				}
 			};
+		}
+
+		void home_menu_dialog::join_focused_invite()
+		{
+			::join_home_menu_invite(m_top_invite_id);
+			m_invite_focused = false;
+
+			// Close the home menu (and resume emulation) so the game acts on the join.
+			trigger_close();
 		}
 
 		home_menu_dialog::home_menu_dialog()
@@ -241,7 +178,24 @@ namespace rsx
 		{
 			if (fade_animation.active) return;
 
-			// Focusable "Join" pill for pending invites.
+			// Minimal quick-join mode (menu opened while the invite toast was still up):
+			// only Join or dismiss; there is no menu chrome to navigate.
+			if (m_minimal_mode)
+			{
+				switch (button_press)
+				{
+				case pad_button::cross: // Join
+					join_focused_invite();
+					return;
+				case pad_button::circle: // Dismiss -> back to the game
+					trigger_close();
+					return;
+				default:
+					return;
+				}
+			}
+
+			// Focusable "Join" pill for pending invites (full menu).
 			if (m_invite_focused)
 			{
 				switch (button_press)
@@ -346,20 +300,26 @@ namespace rsx
 
 			compiled_resource result;
 			result.add(m_dim_background.get_compiled());
+
+			if (m_minimal_mode)
+			{
+				// Minimal quick-join: just the invite prompt, no menu chrome.
+				if (m_invite_info) result.add(m_invite_info->get_compiled());
+				if (m_join_bg) result.add(m_join_bg->get_compiled());
+				if (m_join_label) result.add(m_join_label->get_compiled());
+
+				fade_animation.apply(result);
+				return result;
+			}
+
 			result.add(m_main_menu.get_compiled());
 			result.add(m_description.get_compiled());
 			result.add(m_time_display.get_compiled());
 
-			// Bottom-right pending-invite cards
-			for (auto& card : m_invite_cards)
-			{
-				if (card.background) result.add(card.background->get_compiled());
-				if (card.content) result.add(card.content->get_compiled());
-			}
-
-			// Focusable Join pill (only shown when focused)
+			// Invite prompt (info line + white Join pill), shown when focused via Triangle.
 			if (m_invite_focused && m_join_bg)
 			{
+				if (m_invite_info) result.add(m_invite_info->get_compiled());
 				result.add(m_join_bg->get_compiled());
 				if (m_join_label) result.add(m_join_label->get_compiled());
 			}
@@ -379,19 +339,23 @@ namespace rsx
 
 			this->on_close = std::move(on_close);
 
-			// Build the bottom-right invite cards from the currently pending invites.
-			build_invite_cards();
+			// Build the pending-invite prompt (info line + Join pill).
+			build_invite_prompt();
 
-			// If the menu was opened while an invite toast is still on screen, focus Join right away
-			// so the user can join with a single button press without navigating the menu.
+			// If the menu was opened while an invite toast is still on screen, show the prompt
+			// minimally (no menu chrome) for a one-button quick-join without the full home menu.
 			if (m_has_invites)
 			{
 				const u64 last_toast = g_last_invite_toast_time_us;
 				if (last_toast != 0 && (get_system_time() - last_toast) < 7'000'000)
 				{
+					m_minimal_mode   = true;
 					m_invite_focused = true;
 				}
 			}
+
+			// Dim less in minimal mode so the game/toast stays visible behind the prompt.
+			m_dim_background.back_color.a = m_minimal_mode ? 0.4f : 0.85f;
 
 			visible = true;
 
