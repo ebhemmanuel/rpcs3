@@ -27,15 +27,17 @@ namespace rsx
 			return date_time::fmt_time("%Y/%m/%d %H:%M:%S", time(nullptr));
 		}
 
-		void home_menu_dialog::build_invite_prompt()
+		void home_menu_dialog::build_invite_section()
 		{
+			m_invite_panel.reset();
+			m_invite_glance.reset();
+			m_invite_open_btn.reset();
+			m_invite_inviter.reset();
 			m_join_bg.reset();
 			m_join_label.reset();
-			m_invite_info.reset();
-			m_has_invites    = false;
-			m_invite_focused = false;
-			m_minimal_mode   = false;
-			m_top_invite_id  = 0;
+			m_has_invites     = false;
+			m_invite_expanded = false;
+			m_top_invite_id   = 0;
 
 			auto rpcn = rpcn::rpcn_client::get_instance(0);
 			if (!rpcn)
@@ -59,17 +61,31 @@ namespace rsx
 				return;
 			}
 
-			m_top_invite_id = id;
-			m_has_invites   = true;
+			m_top_invite_id   = id;
+			m_has_invites     = true;
+			const usz count   = invites.size();
 
-			// Info line: "<inviter> has invited you to play"
-			auto info = std::make_unique<label>(msg->first + " has invited you to play");
-			info->set_font("Arial", 20);
-			info->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
-			info->back_color.a = 0.f;
-			static_cast<label*>(info.get())->auto_resize();
+			constexpr s16 margin = 40;
 
-			// White "Join" pill (black, centered text)
+			// ---- Collapsed glance: "<envelope> N" + a Triangle button to open ----
+			constexpr s16 btn_w = 56;
+			constexpr s16 btn_h = 48;
+			const s16 btn_x = static_cast<s16>(virtual_width - margin - btn_w);
+			const s16 btn_y = static_cast<s16>(virtual_height - margin - btn_h);
+
+			auto open_btn = std::make_unique<image_button>(btn_w, btn_h);
+			static_cast<image_button*>(open_btn.get())->set_image_resource(resource_config::standard_image_resource::triangle);
+			open_btn->set_pos(btn_x, btn_y);
+
+			// U+2709 envelope + the pending count, just left of the button.
+			auto glance = std::make_unique<label>(std::string("\xE2\x9C\x89 ") + std::to_string(count));
+			glance->set_font("Arial", 22);
+			glance->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
+			glance->back_color.a = 0.f;
+			static_cast<label*>(glance.get())->auto_resize();
+			glance->set_pos(static_cast<s16>(btn_x - static_cast<s16>(glance->w) - 14), static_cast<s16>(btn_y + (btn_h - static_cast<s16>(glance->h)) / 2));
+
+			// ---- Expanded: inviter name + white Join pill ----
 			auto join_label = std::make_unique<label>("Join");
 			join_label->set_font("Arial", 20);
 			join_label->fore_color   = color4f(0.f, 0.f, 0.f, 1.f);
@@ -77,32 +93,35 @@ namespace rsx
 			static_cast<label*>(join_label.get())->align_text(overlay_element::text_align::center);
 			static_cast<label*>(join_label.get())->auto_resize();
 
-			// Size the pill snugly around the text so the label centers naturally (equal padding
-			// above and below), then make it a full rounded pill.
 			constexpr s16 hpad = 30;
 			constexpr s16 vpad = 13;
 			s16 join_w = static_cast<s16>(join_label->w) + 2 * hpad;
-			if (join_w < 170) join_w = 170;
+			if (join_w < 150) join_w = 150;
 			const s16 join_h = static_cast<s16>(join_label->h) + 2 * vpad;
 
-			const s16 join_x = (virtual_width - join_w) / 2;
-			const s16 join_y = virtual_height - 170;
+			const s16 join_x = static_cast<s16>(virtual_width - margin - join_w);
+			const s16 join_y = static_cast<s16>(virtual_height - margin - join_h);
 
 			auto join_bg = std::make_unique<rounded_rect>();
 			static_cast<rounded_rect*>(join_bg.get())->border_radius = join_h / 2; // full pill
 			join_bg->set_size(join_w, join_h);
 			join_bg->set_pos(join_x, join_y);
 			join_bg->back_color = color4f(1.f, 1.f, 1.f, 1.f); // white
-
-			// Center the text-sized label inside the pill (equal vertical padding).
 			join_label->set_pos(join_x + (join_w - static_cast<s16>(join_label->w)) / 2, join_y + vpad);
 
-			// Join sits above; the info line goes just below the pill.
-			info->set_pos((virtual_width - static_cast<s16>(info->w)) / 2, join_y + join_h + 16);
+			// Inviter name above the pill, right-aligned with it.
+			auto inviter = std::make_unique<label>(msg->first);
+			inviter->set_font("Arial", 22);
+			inviter->fore_color   = color4f(1.f, 1.f, 1.f, 1.f);
+			inviter->back_color.a = 0.f;
+			static_cast<label*>(inviter.get())->auto_resize();
+			inviter->set_pos(static_cast<s16>(virtual_width - margin - static_cast<s16>(inviter->w)), static_cast<s16>(join_y - 36));
 
-			m_invite_info = std::move(info);
-			m_join_bg     = std::move(join_bg);
-			m_join_label  = std::move(join_label);
+			m_invite_open_btn = std::move(open_btn);
+			m_invite_glance   = std::move(glance);
+			m_invite_inviter  = std::move(inviter);
+			m_join_bg         = std::move(join_bg);
+			m_join_label      = std::move(join_label);
 		}
 
 		void home_menu_dialog::trigger_close()
@@ -128,7 +147,7 @@ namespace rsx
 		void home_menu_dialog::join_focused_invite()
 		{
 			::join_home_menu_invite(m_top_invite_id);
-			m_invite_focused = false;
+			m_invite_expanded = false;
 
 			// Close the home menu (and resume emulation) so the game acts on the join.
 			trigger_close();
@@ -183,44 +202,28 @@ namespace rsx
 		{
 			if (fade_animation.active) return;
 
-			// Minimal quick-join mode (menu opened while the invite toast was still up):
-			// only Join or dismiss; there is no menu chrome to navigate.
-			if (m_minimal_mode)
+			// Bottom-right invite section. Expanded shows the inviter + Join pill.
+			if (m_invite_expanded)
 			{
 				switch (button_press)
 				{
 				case pad_button::cross: // Join
 					join_focused_invite();
 					return;
-				case pad_button::circle: // Dismiss -> back to the game
-					trigger_close();
-					return;
-				default:
-					return;
-				}
-			}
-
-			// Focusable "Join" pill for pending invites (full menu).
-			if (m_invite_focused)
-			{
-				switch (button_press)
-				{
-				case pad_button::cross: // Yes -> join
-					join_focused_invite();
-					return;
-				case pad_button::circle: // No -> cancel focus (stay in menu)
+				case pad_button::circle: // Collapse back to the glance
 				case pad_button::triangle:
-					m_invite_focused = false;
+					m_invite_expanded = false;
 					return;
 				default:
-					// Any other input drops focus and falls through to normal navigation.
-					m_invite_focused = false;
+					// Anything else collapses and falls through to normal navigation.
+					m_invite_expanded = false;
 					break;
 				}
 			}
 			else if (m_has_invites && button_press == pad_button::triangle)
 			{
-				m_invite_focused = true;
+				// Open the invite from the collapsed glance.
+				m_invite_expanded = true;
 				return;
 			}
 
@@ -306,27 +309,25 @@ namespace rsx
 			compiled_resource result;
 			result.add(m_dim_background.get_compiled());
 
-			if (m_minimal_mode)
-			{
-				// Minimal quick-join: just the invite prompt, no menu chrome.
-				if (m_invite_info) result.add(m_invite_info->get_compiled());
-				if (m_join_bg) result.add(m_join_bg->get_compiled());
-				if (m_join_label) result.add(m_join_label->get_compiled());
-
-				fade_animation.apply(result);
-				return result;
-			}
-
 			result.add(m_main_menu.get_compiled());
 			result.add(m_description.get_compiled());
 			result.add(m_time_display.get_compiled());
 
-			// Invite prompt (info line + white Join pill), shown when focused via Triangle.
-			if (m_invite_focused && m_join_bg)
+			// Bottom-right invite section: a collapsed glance (envelope + count + Triangle button)
+			// that expands (Triangle) to the inviter's name and a Join pill.
+			if (m_has_invites)
 			{
-				if (m_invite_info) result.add(m_invite_info->get_compiled());
-				result.add(m_join_bg->get_compiled());
-				if (m_join_label) result.add(m_join_label->get_compiled());
+				if (m_invite_expanded)
+				{
+					if (m_invite_inviter) result.add(m_invite_inviter->get_compiled());
+					if (m_join_bg) result.add(m_join_bg->get_compiled());
+					if (m_join_label) result.add(m_join_label->get_compiled());
+				}
+				else
+				{
+					if (m_invite_glance) result.add(m_invite_glance->get_compiled());
+					if (m_invite_open_btn) result.add(m_invite_open_btn->get_compiled());
+				}
 			}
 
 			fade_animation.apply(result);
@@ -344,27 +345,21 @@ namespace rsx
 
 			this->on_close = std::move(on_close);
 
-			// Build the pending-invite prompt (info line + Join pill).
-			build_invite_prompt();
+			// Build the bottom-right invite section.
+			build_invite_section();
 
-			// If the menu was opened while an invite toast is still on screen, show the prompt
-			// minimally (no menu chrome) for a one-button quick-join without the full home menu.
 			if (m_has_invites)
 			{
+				// The section shows the invite info, so fade out the now-redundant toast.
+				dismiss_message_queue();
+
+				// If opened while the invite toast was still up, auto-expand for a quick one-button join.
 				const u64 last_toast = g_last_invite_toast_time_us;
 				if (last_toast != 0 && (get_system_time() - last_toast) < 7'000'000)
 				{
-					m_minimal_mode   = true;
-					m_invite_focused = true;
-
-					// The minimal prompt replaces the toast, so fade the now-redundant toast out.
-					// (In the full menu we leave toasts visible - they now render on top.)
-					dismiss_message_queue();
+					m_invite_expanded = true;
 				}
 			}
-
-			// Dim less in minimal mode so the game/toast stays visible behind the prompt.
-			m_dim_background.back_color.a = m_minimal_mode ? 0.4f : 0.85f;
 
 			visible = true;
 

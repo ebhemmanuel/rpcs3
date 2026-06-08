@@ -23,10 +23,9 @@ namespace rsx
 			error_code show(std::function<void(s32 status)> on_close);
 
 		private:
-			// Builds the pending-invite prompt ("<user> has invited you to play" + a white Join pill,
-			// centered above the bottom toast). Triangle focuses it; opening the menu while the invite
-			// toast is still up shows it minimally (no menu chrome) for a one-button quick-join.
-			void build_invite_prompt();
+			// Bottom-right invite section. Collapsed: an envelope + count glance and a Triangle button
+			// to open it. Expanded (Triangle): the inviter's name and a white Join pill (Cross joins).
+			void build_invite_section();
 			void join_focused_invite();
 			void trigger_close();
 
@@ -35,14 +34,15 @@ namespace rsx
 			label m_description{};
 			label m_time_display{};
 
-			// Pending-invite prompt elements (info line + white Join pill).
-			std::unique_ptr<overlay_element> m_join_bg;
-			std::unique_ptr<overlay_element> m_join_label;
-			std::unique_ptr<overlay_element> m_invite_info;
-			bool m_invite_focused = false;
-			bool m_minimal_mode   = false;
-			bool m_has_invites    = false;
-			u64 m_top_invite_id   = 0;
+			std::unique_ptr<overlay_element> m_invite_panel;    // rounded background
+			std::unique_ptr<overlay_element> m_invite_glance;   // "<n> envelope" count (collapsed)
+			std::unique_ptr<overlay_element> m_invite_open_btn; // Triangle button to open (collapsed)
+			std::unique_ptr<overlay_element> m_invite_inviter;  // inviter name (expanded)
+			std::unique_ptr<overlay_element> m_join_bg;         // Join pill background (expanded)
+			std::unique_ptr<overlay_element> m_join_label;      // "Join" (expanded)
+			bool m_invite_expanded = false;
+			bool m_has_invites     = false;
+			u64 m_top_invite_id    = 0;
 
 			animation_color_interpolate fade_animation{};
 		};
