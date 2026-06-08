@@ -1721,8 +1721,11 @@ void open_home_menu_invite_dialog()
 		u64 chosen_msg_id{};
 		error_code result = CELL_CANCEL;
 
-		// PRESERVE keeps the invite in the message store so the user can retry if a join fails.
-		constexpr u32 recv_options = SCE_NP_BASIC_RECV_MESSAGE_OPTIONS_PRESERVE;
+		// INCLUDE_BOOTABLE ensures bootable invites (which many games, incl. AoT, send) are shown
+		// instead of being silently filtered out, which left the list empty.
+		// No PRESERVE: an actioned invite (accepted or declined) is marked used and drops out of the
+		// list, so only invites the user hasn't acted on persist.
+		constexpr u32 recv_options = SCE_NP_BASIC_RECV_MESSAGE_OPTIONS_INCLUDE_BOOTABLE;
 
 		if (auto manager = g_fxo->try_get<rsx::overlays::display_manager>())
 		{
@@ -1741,7 +1744,17 @@ void open_home_menu_invite_dialog()
 			return;
 		}
 
-		deliver_message_gui_result(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, recv_options, chosen_msg_id, recv_result);
+		if (deliver_message_gui_result(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, recv_options, chosen_msg_id, recv_result) != CELL_OK)
+		{
+			return;
+		}
+
+		// Notify the game that an invitation was selected from the system (XMB-style) overlay.
+		// Unlike the game-initiated sceNpBasicRecvMessageCustom flow, the game is not waiting on a
+		// recv call here, so without this system command it never learns to fetch the selected
+		// invitation (sceNpBasicGetMessageAttachment) and join the session. This is the missing
+		// piece the upstream stub hinted at and is what makes "Accept" actually join the host.
+		sysutil_send_system_cmd(CELL_SYSUTIL_NP_INVITATION_SELECTED, 0);
 	}).detach();
 }
 
