@@ -13,6 +13,7 @@ namespace rsx
 		{
 			bottom_right,
 			bottom_left,
+			bottom_center,
 			top_right,
 			top_left
 		};
@@ -78,6 +79,9 @@ namespace rsx
 				case message_pin_location::bottom_left:
 					queue = &m_ready_queue_bottom_left;
 					break;
+				case message_pin_location::bottom_center:
+					queue = &m_ready_queue_bottom_center;
+					break;
 				case message_pin_location::top_right:
 					queue = &m_ready_queue_top_right;
 					break;
@@ -112,12 +116,14 @@ namespace rsx
 			// Top and bottom enqueued sets
 			std::deque<message_item> m_ready_queue_bottom_right;
 			std::deque<message_item> m_ready_queue_bottom_left;
+			std::deque<message_item> m_ready_queue_bottom_center;
 			std::deque<message_item> m_ready_queue_top_right;
 			std::deque<message_item> m_ready_queue_top_left;
 
 			// Top and bottom visible sets
 			std::deque<message_item> m_visible_items_bottom_right;
 			std::deque<message_item> m_visible_items_bottom_left;
+			std::deque<message_item> m_visible_items_bottom_center;
 			std::deque<message_item> m_visible_items_top_right;
 			std::deque<message_item> m_visible_items_top_left;
 

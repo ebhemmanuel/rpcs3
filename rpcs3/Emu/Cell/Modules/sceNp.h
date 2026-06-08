@@ -1881,6 +1881,13 @@ protected:
 // to the running game exactly like the native XMB does. Safe to call without a ppu_thread.
 void open_home_menu_invite_dialog();
 
+// Accepts a specific pending invite by message id (used by the home-menu Join button) and joins.
+void join_home_menu_invite(u64 msg_id);
+
+// Set by the NP handler when an invite toast is shown; lets the home menu auto-focus the Join
+// button if it's opened while the toast is still up. Value is a get_system_time() timestamp (us).
+extern atomic_t<u64> g_last_invite_toast_time_us;
+
 // Generic functions, also used in SceNpMatchingInt.cpp
 error_code matching_create_room(u32 ctx_id, vm::cptr<SceNpCommunicationId> communicationId, vm::cptr<SceNpMatchingAttr> attr, vm::ptr<SceNpMatchingGUIHandler> handler, vm::ptr<void> arg);
 error_code matching_join_room(u32 ctx_id, vm::ptr<SceNpRoomId> room_id, vm::ptr<SceNpMatchingGUIHandler> handler, vm::ptr<void> arg);

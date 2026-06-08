@@ -21,6 +21,7 @@
 #include "Emu/NP/np_handler.h"
 #include "Emu/NP/np_contexts.h"
 #include "Emu/NP/np_helpers.h"
+#include "Emu/NP/rpcn_client.h"
 #include "Emu/NP/np_structs_extra.h"
 #include "Emu/NP/signaling_handler.h"
 #include "Emu/system_config.h"
@@ -1756,6 +1757,26 @@ void open_home_menu_invite_dialog()
 		// piece the upstream stub hinted at and is what makes "Accept" actually join the host.
 		sysutil_send_system_cmd(CELL_SYSUTIL_NP_INVITATION_SELECTED, 0);
 	}).detach();
+}
+
+void join_home_menu_invite(u64 msg_id)
+{
+	// Accept a specific pending invite directly. Used by the home-menu Join button, which already
+	// knows which invite to act on, so no selection dialog is needed. Delivers the invitation to the
+	// running game and tells it to join, then consumes the invite so it leaves the list.
+	constexpr u32 recv_options = SCE_NP_BASIC_RECV_MESSAGE_OPTIONS_INCLUDE_BOOTABLE;
+
+	if (deliver_message_gui_result(SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE, recv_options, msg_id, SCE_NP_BASIC_MESSAGE_ACTION_ACCEPT) != CELL_OK)
+	{
+		return;
+	}
+
+	sysutil_send_system_cmd(CELL_SYSUTIL_NP_INVITATION_SELECTED, 0);
+
+	if (auto rpcn = rpcn::rpcn_client::get_instance(0))
+	{
+		rpcn->mark_message_used(msg_id);
+	}
 }
 
 error_code sceNpBasicMarkMessageAsUsed(SceNpBasicMessageId msgId)

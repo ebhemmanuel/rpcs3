@@ -53,6 +53,10 @@ LOG_CHANNEL(sceNp);
 
 LOG_CHANNEL(rpcn_log, "rpcn");
 LOG_CHANNEL(nph_log, "NPHandler");
+
+// Timestamp (get_system_time, us) of the last invite toast shown. The home menu reads this to
+// auto-focus its Join button when opened while an invite toast is still on screen.
+atomic_t<u64> g_last_invite_toast_time_us = 0;
 LOG_CHANNEL(ticket_log, "Ticket");
 
 namespace np
@@ -1248,8 +1252,17 @@ namespace np
 					}
 
 					const auto& msg = opt_msg.value();
-					const localized_string_id loc_id = (msg->second.mainType == SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE) ? localized_string_id::CELL_NP_MESSAGE_INVITE_RECEIVED : localized_string_id::CELL_NP_MESSAGE_OTHER_RECEIVED;
-					rsx::overlays::queue_message(get_localized_string(loc_id, msg->first.c_str()), 6'000'000);
+					const bool is_invite = msg->second.mainType == SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE;
+					const localized_string_id loc_id = is_invite ? localized_string_id::CELL_NP_MESSAGE_INVITE_RECEIVED : localized_string_id::CELL_NP_MESSAGE_OTHER_RECEIVED;
+					// Show invite notifications at the bottom-center (with edge margin); other messages stay top-left.
+					const auto msg_location = is_invite ? rsx::overlays::message_pin_location::bottom_center : rsx::overlays::message_pin_location::top_left;
+					rsx::overlays::queue_message(get_localized_string(loc_id, msg->first.c_str()), 6'000'000, {}, msg_location);
+
+					if (is_invite)
+					{
+						// Remember when the invite toast appeared so the home menu can auto-focus Join.
+						g_last_invite_toast_time_us = get_system_time();
+					}
 
 					if (basic_handler_registered)
 					{

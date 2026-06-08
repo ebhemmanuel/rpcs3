@@ -219,7 +219,8 @@ namespace rsx
 			// Render reversed list. Oldest entries are furthest from the border
 			constexpr u16 spacing = 4;
 			s16 x_offset = 10;
-			s16 y_offset = 8;
+			// Give the bottom-center stack extra clearance from the screen edge
+			s16 y_offset = (origin == message_pin_location::bottom_center) ? 40 : 8;
 			usz index = 0;
 
 			for (auto it = vis_set.rbegin(); it != vis_set.rend(); ++it, ++index)
@@ -233,6 +234,10 @@ namespace rsx
 				case message_pin_location::bottom_left:
 					y_offset += (spacing + it->h);
 					it->update(index, cur_time, x_offset, virtual_height - y_offset);
+					break;
+				case message_pin_location::bottom_center:
+					y_offset += (spacing + it->h);
+					it->update(index, cur_time, (virtual_width - it->w) / 2, virtual_height - y_offset);
 					break;
 				case message_pin_location::top_right:
 					it->update(index, cur_time, virtual_width - x_offset - it->w, y_offset);
@@ -257,10 +262,12 @@ namespace rsx
 
 			update_queue(m_visible_items_bottom_right, m_ready_queue_bottom_right, message_pin_location::bottom_right);
 			update_queue(m_visible_items_bottom_left, m_ready_queue_bottom_left, message_pin_location::bottom_left);
+			update_queue(m_visible_items_bottom_center, m_ready_queue_bottom_center, message_pin_location::bottom_center);
 			update_queue(m_visible_items_top_right, m_ready_queue_top_right, message_pin_location::top_right);
 			update_queue(m_visible_items_top_left, m_ready_queue_top_left, message_pin_location::top_left);
 
 			visible = !m_visible_items_bottom_right.empty() || !m_visible_items_bottom_left.empty() ||
+			          !m_visible_items_bottom_center.empty() ||
 			          !m_visible_items_top_right.empty() || !m_visible_items_top_left.empty();
 		}
 
@@ -281,6 +288,11 @@ namespace rsx
 			}
 
 			for (auto& item : m_visible_items_bottom_left)
+			{
+				cr.add(item.get_compiled());
+			}
+
+			for (auto& item : m_visible_items_bottom_center)
 			{
 				cr.add(item.get_compiled());
 			}
@@ -308,6 +320,8 @@ namespace rsx
 				return check_list(m_ready_queue_bottom_right) || check_list(m_visible_items_bottom_right);
 			case message_pin_location::bottom_left:
 				return check_list(m_ready_queue_bottom_left) || check_list(m_visible_items_bottom_left);
+			case message_pin_location::bottom_center:
+				return check_list(m_ready_queue_bottom_center) || check_list(m_visible_items_bottom_center);
 			case message_pin_location::top_right:
 				return check_list(m_ready_queue_top_right) || check_list(m_visible_items_top_right);
 			case message_pin_location::top_left:
