@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "../overlay_manager.h"
+#include "../overlay_message.h"
 #include "overlay_friends_list_dialog.h"
 #include "Emu/NP/rpcn_config.h"
 #include "Emu/vfs_config.h"
+#include "Emu/Cell/Modules/sceNp.h"
+#include "Input/pad_thread.h"
 
 namespace rsx
 {
@@ -180,7 +183,9 @@ namespace rsx
 				if (!m_list || m_list->m_items.empty())
 					break;
 
-				if (button_press == pad_button::triangle && m_current_page != friends_list_dialog_page::invites)
+				if (button_press == pad_button::triangle &&
+				    m_current_page != friends_list_dialog_page::invites &&
+				    m_current_page != friends_list_dialog_page::friends)
 					break;
 
 				const usz index = static_cast<usz>(m_list->get_selected_index());
@@ -212,7 +217,45 @@ namespace rsx
 						}
 					}
 
-					if (!selected_username.empty() && m_message_box && !m_message_box->visible)
+					if (selected_username.empty())
+						break;
+
+					if (button_press == pad_button::triangle)
+					{
+						// Join Game: attempt to join the selected friend's session.
+						const auto it = m_friend_data.friends.find(selected_username);
+						if (it == m_friend_data.friends.end() || !it->second.online)
+						{
+							queue_message(std::string("That friend is offline."), 4'000'000, {}, message_pin_location::bottom_center);
+							break;
+						}
+
+						// Strategy 1: presence-based join. Returns false if presence carried no
+						// joinable payload (later: fall back to Arcadia-brokered / request-an-invite).
+						const bool joining = join_friend_session(selected_username, it->second.pr_com_id, it->second.pr_data);
+
+						if (joining)
+						{
+							queue_message(std::string("Joining ") + selected_username + "...", 6'000'000, {}, message_pin_location::bottom_center);
+
+							// Close the friends list and the whole home menu so the game resumes and
+							// acts on the join (the join was delivered via INVITATION_SELECTED). This
+							// case returns early, so fade-close here instead of via close_dialog below.
+							pad::g_home_menu_close_requested = true;
+							fade_animation.current   = color4f(1.f);
+							fade_animation.end       = color4f(0.f);
+							fade_animation.active     = true;
+							fade_animation.on_finish = [this] { close(true, true); };
+						}
+						else
+						{
+							queue_message(selected_username + " isn't in a joinable session.", 5'000'000, {}, message_pin_location::bottom_center);
+						}
+						break;
+					}
+
+					// Cross: remove friend.
+					if (m_message_box && !m_message_box->visible)
 					{
 						m_message_box->show(get_localized_string(localized_string_id::HOME_MENU_FRIENDS_REMOVE_USER_MSG, selected_username.c_str()), [this, selected_username]()
 						{
@@ -412,6 +455,23 @@ namespace rsx
 							if (index < m_friend_data.requests_received.size())
 							{
 								m_extra_btn.set_text(get_localized_string(localized_string_id::HOME_MENU_FRIENDS_REJECT_REQUEST));
+								result.add(m_extra_btn.get_compiled());
+							}
+						}
+						else if (!m_list->m_items.empty() && m_current_page == friends_list_dialog_page::friends)
+						{
+							// Triangle = Join Game, shown when an online friend is selected
+							// (online friends are listed before offline ones).
+							const usz index = static_cast<usz>(m_list->get_selected_index());
+							usz online_count = 0;
+							for (const auto& [username, data] : m_friend_data.friends)
+							{
+								if (data.online) online_count++;
+							}
+
+							if (index < online_count)
+							{
+								m_extra_btn.set_text("Join");
 								result.add(m_extra_btn.get_compiled());
 							}
 						}

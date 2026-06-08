@@ -3193,6 +3193,19 @@ namespace rpcn
 		}
 	}
 
+	u64 rpcn_client::inject_local_message(std::string sender, message_data mdata)
+	{
+		std::lock_guard lock(mutex_messages);
+		const u64 msg_id = message_counter++;
+		mdata.msgId = msg_id;
+		auto id_and_msg = stx::make_shared<std::pair<std::string, message_data>>(std::make_pair(std::move(sender), std::move(mdata)));
+		messages.emplace(msg_id, id_and_msg);
+		active_messages.insert(msg_id);
+		// Deliberately not pushed to new_messages / message_cbs: this is a local join attachment,
+		// not an incoming message, so it must not raise a "received invite" notification.
+		return msg_id;
+	}
+
 	std::optional<shared_ptr<std::pair<std::string, message_data>>> rpcn_client::get_message(u64 id) const
 	{
 		{

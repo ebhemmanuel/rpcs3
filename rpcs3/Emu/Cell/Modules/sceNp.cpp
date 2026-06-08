@@ -1779,6 +1779,45 @@ void join_home_menu_invite(u64 msg_id)
 	}
 }
 
+bool join_friend_session(const std::string& username, const SceNpCommunicationId& pr_com_id, const std::vector<u8>& pr_data)
+{
+	// [JOINDIAG] Always log what the friend's presence carries so a Join press doubles as a capture
+	// of the presence payload, for comparison with a real invite's attachment.
+	sceNp.notice("[JOINDIAG] join request for '%s': comId='%s' presence(%u bytes)=%s",
+		username, pr_com_id.data, static_cast<u32>(pr_data.size()),
+		fmt::buf_to_hexstring(pr_data.data(), pr_data.size()));
+
+	if (pr_data.empty())
+	{
+		// Presence carried no joinable session payload (friend likely not in a joinable lobby).
+		// Caller falls back to the next strategy (Arcadia-brokered / request-an-invite).
+		return false;
+	}
+
+	auto rpcn = rpcn::rpcn_client::get_instance(0);
+	if (!rpcn)
+	{
+		return false;
+	}
+
+	// Strategy 1 (presence-based): synthesize a bootable invite from the friend's presence payload,
+	// then drive the existing accept path (deliver attachment + CELL_SYSUTIL_NP_INVITATION_SELECTED)
+	// so the running game fetches it and joins the session.
+	message_data mdata{};
+	mdata.commId      = pr_com_id;
+	mdata.mainType    = SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE;
+	mdata.subType     = 0;
+	mdata.msgFeatures = SCE_NP_BASIC_MESSAGE_FEATURES_BOOTABLE;
+	mdata.subject     = "Join";
+	mdata.data.assign(pr_data.begin(), pr_data.end());
+
+	const u64 msg_id = rpcn->inject_local_message(username, std::move(mdata));
+	sceNp.notice("[JOINDIAG] join_friend_session: synthesized invite msg_id=%d for '%s'", msg_id, username);
+
+	join_home_menu_invite(msg_id);
+	return true;
+}
+
 error_code sceNpBasicMarkMessageAsUsed(SceNpBasicMessageId msgId)
 {
 	sceNp.todo("sceNpBasicMarkMessageAsUsed(msgId=%d)", msgId);

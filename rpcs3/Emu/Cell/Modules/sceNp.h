@@ -1884,6 +1884,10 @@ void open_home_menu_invite_dialog();
 // Accepts a specific pending invite by message id (used by the home-menu Join button) and joins.
 void join_home_menu_invite(u64 msg_id);
 
+// Attempts to join a friend's session from their presence payload (Join Game in the friends list).
+// Returns false if presence carried no joinable data, so the caller can fall back to another path.
+bool join_friend_session(const std::string& username, const SceNpCommunicationId& pr_com_id, const std::vector<u8>& pr_data);
+
 // Set by the NP handler when an invite toast is shown; lets the home menu auto-focus the Join
 // button if it's opened while the toast is still up. Value is a get_system_time() timestamp (us).
 extern atomic_t<u64> g_last_invite_toast_time_us;

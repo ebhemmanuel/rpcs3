@@ -321,6 +321,11 @@ namespace rpcn
 		void remove_message_cb(message_cb_func cb_func, void* cb_param);
 		void mark_message_used(u64 id);
 
+		// Inject a synthetic message into the local store (no network, no toast/callbacks) and return
+		// its id. Used to build a "join" attachment from a friend's presence so the existing
+		// invite-accept path can drive the game into the session.
+		u64 inject_local_message(std::string sender, message_data mdata);
+
 		bool is_connected() const;
 		bool is_authentified() const;
 		rpcn_state get_rpcn_state() const;
