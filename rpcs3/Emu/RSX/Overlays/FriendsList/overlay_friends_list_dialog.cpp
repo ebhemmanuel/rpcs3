@@ -230,9 +230,9 @@ namespace rsx
 							break;
 						}
 
-						// Strategy 1: presence-based join. Returns false if presence carried no
-						// joinable payload (later: fall back to Arcadia-brokered / request-an-invite).
-						const bool joining = join_friend_session(selected_username, it->second.pr_com_id, it->second.pr_data);
+						// Join by synthesizing the game's invite attachment from the friend's
+						// username (AO joins their session over Theater).
+						const bool joining = join_friend_session(selected_username);
 
 						if (joining)
 						{

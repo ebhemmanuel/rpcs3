@@ -1779,18 +1779,10 @@ void join_home_menu_invite(u64 msg_id)
 	}
 }
 
-bool join_friend_session(const std::string& username, const SceNpCommunicationId& pr_com_id, const std::vector<u8>& pr_data)
+bool join_friend_session(const std::string& username)
 {
-	// [JOINDIAG] Always log what the friend's presence carries so a Join press doubles as a capture
-	// of the presence payload, for comparison with a real invite's attachment.
-	sceNp.notice("[JOINDIAG] join request for '%s': comId='%s' presence(%u bytes)=%s",
-		username, pr_com_id.data, static_cast<u32>(pr_data.size()),
-		fmt::buf_to_hexstring(pr_data.data(), pr_data.size()));
-
-	if (pr_data.empty())
+	if (username.empty())
 	{
-		// Presence carried no joinable session payload (friend likely not in a joinable lobby).
-		// Caller falls back to the next strategy (Arcadia-brokered / request-an-invite).
 		return false;
 	}
 
@@ -1800,20 +1792,30 @@ bool join_friend_session(const std::string& username, const SceNpCommunicationId
 		return false;
 	}
 
-	// Strategy 1 (presence-based): synthesize a bootable invite from the friend's presence payload,
-	// then drive the existing accept path (deliver attachment + CELL_SYSUTIL_NP_INVITATION_SELECTED)
-	// so the running game fetches it and joins the session.
+	auto& nph = g_fxo->get<named_thread<np::np_handler>>();
+	const SceNpCommunicationId comm_id = nph.get_basic_handler_context();
+
+	// An Army of Two invite's attachment is simply the host's online-id, null-wrapped ("\0<name>\0").
+	// Rebuild that from the friend's username so the running game joins their session over Theater;
+	// the server already redirects AO-family joins by username, so no presence/lobby query is needed.
+	std::vector<u8> data;
+	data.reserve(username.size() + 2);
+	data.push_back(0x00);
+	data.insert(data.end(), username.begin(), username.end());
+	data.push_back(0x00);
+
 	message_data mdata{};
-	mdata.commId      = pr_com_id;
+	mdata.commId      = comm_id;
 	mdata.mainType    = SCE_NP_BASIC_MESSAGE_MAIN_TYPE_INVITE;
-	mdata.subType     = 0;
+	mdata.subType     = 1;
 	mdata.msgFeatures = SCE_NP_BASIC_MESSAGE_FEATURES_BOOTABLE;
 	mdata.subject     = "Join";
-	mdata.data.assign(pr_data.begin(), pr_data.end());
+	mdata.data        = std::move(data);
 
 	const u64 msg_id = rpcn->inject_local_message(username, std::move(mdata));
-	sceNp.notice("[JOINDIAG] join_friend_session: synthesized invite msg_id=%d for '%s'", msg_id, username);
+	sceNp.notice("[JOINDIAG] join_friend_session: synthesized invite msg_id=%d for '%s' (comId='%s')", msg_id, username, comm_id.data);
 
+	// Deliver the attachment and tell the game to act on it (same path as accepting a real invite).
 	join_home_menu_invite(msg_id);
 	return true;
 }
